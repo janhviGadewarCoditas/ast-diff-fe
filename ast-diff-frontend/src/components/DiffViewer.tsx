@@ -254,7 +254,10 @@ export default function DiffViewer({ differences }: DiffViewerProps) {
                   padding: "16px",
                   fontSize: "13px",
                   fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
-                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  wordWrap: "break-word",
+                  overflowWrap: "break-word",
+                  overflow: "hidden",
                   background: "transparent",
                   color: diff.change_type === "added" ? "#9ca3af" : "#1f2937",
                   lineHeight: "1.5"
@@ -281,7 +284,10 @@ export default function DiffViewer({ differences }: DiffViewerProps) {
                   padding: "16px",
                   fontSize: "13px",
                   fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
-                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  wordWrap: "break-word",
+                  overflowWrap: "break-word",
+                  overflow: "hidden",
                   background: "transparent",
                   color: diff.change_type === "deleted" ? "#9ca3af" : "#1f2937",
                   lineHeight: "1.5"

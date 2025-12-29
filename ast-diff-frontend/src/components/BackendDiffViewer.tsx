@@ -355,10 +355,11 @@ export default function BackendDiffViewer({
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         maxHeight: '600px',
-        overflow: 'auto'
+        overflow: 'auto',
+        width: '100%'
       }}>
         {/* File A (Left) */}
-        <div style={{ borderRight: '2px solid #d0d7de' }}>
+        <div style={{ borderRight: '2px solid #d0d7de', minWidth: 0, overflow: 'hidden' }}>
           {linesA.map((line, index) => {
             const lineNum = index + 1
             const isAffected = affectedLinesA.has(lineNum)
@@ -375,7 +376,8 @@ export default function BackendDiffViewer({
                 <div style={{
                   display: 'flex',
                   ...getLineStyle(diff?.change_type, isAffected, stmtChange?.type),
-                  position: 'relative'
+                  position: 'relative',
+                  minWidth: 0
                 }}>
                   <div style={{
                     padding: '2px 8px',
@@ -395,8 +397,10 @@ export default function BackendDiffViewer({
                     padding: '2px 8px',
                     fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
                     fontSize: '13px',
-                    whiteSpace: 'pre',
-                    overflow: 'auto',
+                    whiteSpace: 'pre-wrap',
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word',
+                    overflow: 'hidden',
                     flex: 1,
                     color: '#24292e',
                     lineHeight: '1.5',
@@ -445,7 +449,7 @@ export default function BackendDiffViewer({
         </div>
 
         {/* File B (Right) */}
-        <div>
+        <div style={{ minWidth: 0, overflow: 'hidden' }}>
           {linesB.map((line, index) => {
             const lineNum = index + 1
             const isAffected = affectedLinesB.has(lineNum)
@@ -462,7 +466,8 @@ export default function BackendDiffViewer({
                 <div style={{
                   display: 'flex',
                   ...getLineStyle(diff?.change_type, isAffected, stmtChange?.type),
-                  position: 'relative'
+                  position: 'relative',
+                  minWidth: 0
                 }}>
                   <div style={{
                     padding: '2px 8px',
@@ -482,8 +487,10 @@ export default function BackendDiffViewer({
                     padding: '2px 8px',
                     fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
                     fontSize: '13px',
-                    whiteSpace: 'pre',
-                    overflow: 'auto',
+                    whiteSpace: 'pre-wrap',
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word',
+                    overflow: 'hidden',
                     flex: 1,
                     color: '#24292e',
                     lineHeight: '1.5',

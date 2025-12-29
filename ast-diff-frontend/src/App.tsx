@@ -46,7 +46,7 @@ function Navigation() {
         {/* <Link to="/" style={navLinkStyle("/")}>
           🌲 AST Diff Analyzer
         </Link> */}
-        <Link to="/view-original" style={navLinkStyle("/view-original")}>
+        <Link to="/ast-diff" style={navLinkStyle("/ast-diff")}>
           📝 AST Diff
         </Link>
       </div>
@@ -60,7 +60,7 @@ export default function App() {
       <Navigation />
       <Routes>
         <Route path="/" element={<AstDiffPage />} />
-        <Route path="/view-original" element={<ViewOriginalPage />} />
+        <Route path="/ast-diff" element={<ViewOriginalPage />} />
       </Routes>
     </BrowserRouter>
   )
