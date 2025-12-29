@@ -189,7 +189,8 @@ export default function BackendDiffViewer({
           )}
         </div>
         
-        {/* Show statement-level changes for modified/moved_modified blocks */}
+        {/* COMMENTED OUT: Show statement-level changes for modified/moved_modified blocks */}
+        {/* 
         {diff.statement_diffs && diff.statement_diffs.length > 0 && (
           <div style={{
             padding: '8px 12px',
@@ -203,6 +204,7 @@ export default function BackendDiffViewer({
             {renderRecursiveStatementDiffs(diff.statement_diffs, 0)}
           </div>
         )}
+        */}
       </div>
     )
   }
