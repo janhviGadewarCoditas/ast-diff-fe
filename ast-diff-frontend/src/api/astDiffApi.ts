@@ -4,7 +4,7 @@ export async function compareAst(fileA: File, fileB: File) {
     formData.append("file_b", fileB)
   
     const response = await fetch(
-      "https://cd9a393de755.ngrok-free.app/api/v1/compare",
+      "https://adoptively-loungy-norris.ngrok-free.dev/api/v1/compare/recursive",
       {
         method: "POST",
         body: formData,
