@@ -11,6 +11,7 @@ export default function ViewOriginalPage() {
     const [fileBContent, setFileBContent] = useState<string>("")
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [resetKey, setResetKey] = useState(0)
 
     const readFileContent = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
@@ -58,6 +59,7 @@ export default function ViewOriginalPage() {
         setFileAContent("")
         setFileBContent("")
         setError(null)
+        setResetKey(prev => prev + 1) // Force re-render of file inputs
     }
 
     return (
@@ -120,6 +122,7 @@ export default function ViewOriginalPage() {
                                 transition: "all 0.3s"
                             }}>
                                 <input
+                                    key={`fileA-${resetKey}`}
                                     type="file"
                                     onChange={e => setFileA(e.target.files?.[0] || null)}
                                     style={{
@@ -171,6 +174,7 @@ export default function ViewOriginalPage() {
                                 transition: "all 0.3s"
                             }}>
                                 <input
+                                    key={`fileB-${resetKey}`}
                                     type="file"
                                     onChange={e => setFileB(e.target.files?.[0] || null)}
                                     style={{
@@ -240,7 +244,7 @@ export default function ViewOriginalPage() {
                                 }}
                             >
                                 🔄 Reset
-                            </button>
+                            </button> 
                         )}
                     </div>
 

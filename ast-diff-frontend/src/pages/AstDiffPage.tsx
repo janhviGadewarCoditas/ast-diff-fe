@@ -9,6 +9,7 @@ export default function AstDiffPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<AstDiffResponse | null>(null)
+  const [resetKey, setResetKey] = useState(0)
 
   const handleCompare = async () => {
     if (!fileA || !fileB) {
@@ -34,6 +35,7 @@ export default function AstDiffPage() {
     setFileB(null)
     setData(null)
     setError(null)
+    setResetKey(prev => prev + 1) // Force re-render of file inputs
   }
 
   return (
@@ -99,6 +101,7 @@ export default function AstDiffPage() {
                 transition: "all 0.3s"
               }}>
                 <input
+                  key={`fileA-${resetKey}`}
                   type="file"
                   onChange={e => setFileA(e.target.files?.[0] || null)}
                   style={{
@@ -150,6 +153,7 @@ export default function AstDiffPage() {
                 transition: "all 0.3s"
               }}>
                 <input
+                  key={`fileB-${resetKey}`}
                   type="file"
                   onChange={e => setFileB(e.target.files?.[0] || null)}
                   style={{
