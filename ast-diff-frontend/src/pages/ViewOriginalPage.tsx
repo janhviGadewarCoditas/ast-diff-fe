@@ -167,7 +167,7 @@ export default function ViewOriginalPage() {
                                         opacity: 0,
                                         cursor: "pointer"
                                     }}
-                                    accept=".js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.go,.txt,.md"
+                                    accept=".js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.go,.txt,.md,.json"
                                 />
                                 <div style={{ pointerEvents: "none" }}>
                                     {fileA ? (
