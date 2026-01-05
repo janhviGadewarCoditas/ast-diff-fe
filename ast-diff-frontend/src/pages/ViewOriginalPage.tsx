@@ -1,17 +1,20 @@
 import { useState } from "react"
 import { compareAst } from "../api/astDiffApi"
 import type { AstDiffResponse } from "../types/astDiff"
+import type { JsonDiffResponse } from "../types/json/jsonDiff"
 import BackendDiffViewer from "../components/BackendDiffViewer"
+import JsonBackendDiffViewer from "../components/JsonBackendDiffViewer"
 
 export default function ViewOriginalPage() {
     const [fileA, setFileA] = useState<File | null>(null)
     const [fileB, setFileB] = useState<File | null>(null)
-    const [data, setData] = useState<AstDiffResponse | null>(null)
+    const [data, setData] = useState<AstDiffResponse | JsonDiffResponse | null>(null)
     const [fileAContent, setFileAContent] = useState<string>("")
     const [fileBContent, setFileBContent] = useState<string>("")
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [resetKey, setResetKey] = useState(0)
+    const [fileType, setFileType] = useState<"javascript" | "json">("javascript")
 
     const readFileContent = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
@@ -33,7 +36,7 @@ export default function ViewOriginalPage() {
 
         try {
             // Call backend API for AST diff analysis
-            const result = await compareAst(fileA, fileB)
+            const result = await compareAst(fileA, fileB, fileType)
 
             // Also read file contents for display
             const [contentA, contentB] = await Promise.all([
@@ -64,7 +67,7 @@ export default function ViewOriginalPage() {
 
     return (
         <div style={{
-            minHeight: "calc(100vh - 73px)",
+            minHeight: "100vh",
             background: "linear-gradient(to bottom, #f3f4f6, #e5e7eb)",
             padding: "40px 20px"
         }}>
@@ -84,6 +87,39 @@ export default function ViewOriginalPage() {
                     }}>
                         AST Diff Analyzer
                     </h1>
+                    <p style={{ color: "#6b7280", fontSize: "16px" }}>
+                        Compare JavaScript and JSON files with line-by-line semantic analysis
+                    </p>
+                </div>
+
+                {/* Tab Selector */}
+                <div style={{ display: "flex", gap: "10px", marginBottom: "20px", justifyContent: "center" }}>
+                    <button
+                        onClick={() => setFileType("javascript")}
+                        style={{
+                            padding: "8px 16px",
+                            background: fileType === "javascript" ? "#667eea" : "#e5e7eb",
+                            color: fileType === "javascript" ? "white" : "#374151",
+                            border: "none",
+                            cursor: "pointer",
+                            fontWeight: "600"
+                        }}
+                    >
+                        JavaScript
+                    </button>
+                    <button
+                        onClick={() => setFileType("json")}
+                        style={{
+                            padding: "8px 16px",
+                            background: fileType === "json" ? "#667eea" : "#e5e7eb",
+                            color: fileType === "json" ? "white" : "#374151",
+                            border: "none",
+                            cursor: "pointer",
+                            fontWeight: "600"
+                        }}
+                    >
+                        JSON
+                    </button>
                 </div>
 
                 {/* File Upload Section */}
@@ -268,13 +304,24 @@ export default function ViewOriginalPage() {
                 {/* Diff Viewer */}
                 {data && fileA && fileB && (
                     <div style={{ animation: "fadeIn 0.5s ease-out" }}>
-                        <BackendDiffViewer
-                            differences={data.differences}
-                            fileAContent={fileAContent}
-                            fileBContent={fileBContent}
-                            fileAName={fileA.name}
-                            fileBName={fileB.name}
-                        />
+                        {fileType === "javascript" && (
+                            <BackendDiffViewer
+                                differences={(data as AstDiffResponse).differences}
+                                fileAContent={fileAContent}
+                                fileBContent={fileBContent}
+                                fileAName={fileA.name}
+                                fileBName={fileB.name}
+                            />
+                        )}
+                        {fileType === "json" && (
+                            <JsonBackendDiffViewer
+                                differences={(data as JsonDiffResponse).differences}
+                                fileAContent={fileAContent}
+                                fileBContent={fileBContent}
+                                fileAName={fileA.name}
+                                fileBName={fileB.name}
+                            />
+                        )}
                     </div>
                 )}
             </div>

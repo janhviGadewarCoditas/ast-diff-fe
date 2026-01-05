@@ -40,16 +40,19 @@ export interface AstDiffResponse {
     statement_diffs: StatementDiff[]
   }
   
-  export interface StatementDiff {
-    change_type: string
-    code: string
-    node_type: string
-    file_a_line: number | null
-    file_a_index: number | null
-    file_b_line: number | null
-    file_b_index: number | null
-    description: string
-    old_code: string | null
-    similarity_score: number | null
-  }
+export interface StatementDiff {
+  change_type: string
+  code: string
+  node_type: string
+  file_a_line: number | null
+  file_a_index: number | null
+  file_b_line: number | null
+  file_b_index: number | null
+  description: string
+  old_code: string | null
+  similarity_score: number | null
+  child_diffs: StatementDiff[]
+  is_container: boolean
+  branch_label: string | null
+}
   
