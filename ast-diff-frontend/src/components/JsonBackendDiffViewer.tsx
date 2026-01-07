@@ -40,32 +40,56 @@ export default function JsonBackendDiffViewer({
       }
     }
 
-    // For moved/moved_modified blocks, use the block-level change type instead of statement-level
-    const shouldUseBlockLevelChange = diff.change_type === 'moved' || diff.change_type === 'moved_modified'
-    
-    if (shouldUseBlockLevelChange) {
-      // For moved blocks, set the block-level change on the start lines
-      if (diff.file_a_start_line) {
-        statementChangesA.set(diff.file_a_start_line, {
-          type: diff.change_type,
-          description: diff.description,
-          targetLine: diff.file_b_start_line || undefined,
-          sourceLine: diff.file_a_start_line
-        })
-      }
-      if (diff.file_b_start_line) {
-        statementChangesB.set(diff.file_b_start_line, {
-          type: diff.change_type,
-          description: diff.description,
-          sourceLine: diff.file_a_start_line || undefined,
-          targetLine: diff.file_b_start_line
-        })
-      }
-    } else {
-      // For non-moved blocks, map statement-level diffs
-      const mapStatementDiffsRecursively = (stmtDiffs: any[]) => {
-        stmtDiffs.forEach(stmtDiff => {
-          if (stmtDiff.file_a_line) {
+    // Process statement-level diffs recursively (depth-first) so children take precedence
+    const mapStatementDiffsRecursively = (stmtDiffs: any[]) => {
+      stmtDiffs.forEach(stmtDiff => {
+        // Process child diffs FIRST (depth-first traversal)
+        const hasChildren = stmtDiff.child_diffs && stmtDiff.child_diffs.length > 0
+        if (hasChildren) {
+          mapStatementDiffsRecursively(stmtDiff.child_diffs)
+        }
+        
+        // Check if this statement diff has line range properties
+        const hasLineRange = stmtDiff.file_a_start_line !== undefined || stmtDiff.file_b_start_line !== undefined
+        
+        if (hasLineRange) {
+          // Handle line ranges for moved, added, deleted, modified items
+          if (stmtDiff.file_a_start_line && stmtDiff.file_a_end_line) {
+            // Highlight all lines in the range for file A
+            const startLine = stmtDiff.file_a_start_line
+            const endLine = stmtDiff.file_a_end_line
+            for (let i = startLine; i <= endLine; i++) {
+              // Only set if not already set by a more specific child diff
+              if (!statementChangesA.has(i)) {
+                statementChangesA.set(i, {
+                  type: stmtDiff.change_type,
+                  description: stmtDiff.description,
+                  targetLine: i === startLine ? stmtDiff.file_b_start_line : undefined,
+                  sourceLine: startLine
+                })
+              }
+            }
+          }
+          
+          if (stmtDiff.file_b_start_line && stmtDiff.file_b_end_line) {
+            // Highlight all lines in the range for file B
+            const startLine = stmtDiff.file_b_start_line
+            const endLine = stmtDiff.file_b_end_line
+            for (let i = startLine; i <= endLine; i++) {
+              // Only set if not already set by a more specific child diff
+              if (!statementChangesB.has(i)) {
+                statementChangesB.set(i, {
+                  type: stmtDiff.change_type,
+                  description: stmtDiff.description,
+                  sourceLine: i === startLine ? stmtDiff.file_a_start_line : undefined,
+                  targetLine: startLine
+                })
+              }
+            }
+          }
+        } else {
+          // Handle single line properties (legacy support)
+          if (stmtDiff.file_a_line && !statementChangesA.has(stmtDiff.file_a_line)) {
             statementChangesA.set(stmtDiff.file_a_line, {
               type: stmtDiff.change_type,
               description: stmtDiff.description,
@@ -73,7 +97,7 @@ export default function JsonBackendDiffViewer({
               sourceLine: stmtDiff.file_a_line
             })
           }
-          if (stmtDiff.file_b_line) {
+          if (stmtDiff.file_b_line && !statementChangesB.has(stmtDiff.file_b_line)) {
             statementChangesB.set(stmtDiff.file_b_line, {
               type: stmtDiff.change_type,
               description: stmtDiff.description,
@@ -81,14 +105,36 @@ export default function JsonBackendDiffViewer({
               targetLine: stmtDiff.file_b_line
             })
           }
-          if (stmtDiff.child_diffs && stmtDiff.child_diffs.length > 0) {
-            mapStatementDiffsRecursively(stmtDiff.child_diffs)
-          }
+        }
+      })
+    }
+
+    // ALWAYS process statement_diffs if they exist (even for moved/moved_modified blocks)
+    if (diff.statement_diffs && diff.statement_diffs.length > 0) {
+      mapStatementDiffsRecursively(diff.statement_diffs)
+    }
+    
+    // For moved/moved_modified blocks WITHOUT statement_diffs, highlight the first line with block-level change
+    const hasStatementDiffs = diff.statement_diffs && diff.statement_diffs.length > 0
+    const shouldUseBlockLevelChange = (diff.change_type === 'moved' || diff.change_type === 'moved_modified') && !hasStatementDiffs
+    
+    if (shouldUseBlockLevelChange) {
+      // For moved blocks without detailed diffs, set the block-level change on the start lines
+      if (diff.file_a_start_line && !statementChangesA.has(diff.file_a_start_line)) {
+        statementChangesA.set(diff.file_a_start_line, {
+          type: diff.change_type,
+          description: diff.description,
+          targetLine: diff.file_b_start_line || undefined,
+          sourceLine: diff.file_a_start_line
         })
       }
-
-      if (diff.statement_diffs && diff.statement_diffs.length > 0) {
-        mapStatementDiffsRecursively(diff.statement_diffs)
+      if (diff.file_b_start_line && !statementChangesB.has(diff.file_b_start_line)) {
+        statementChangesB.set(diff.file_b_start_line, {
+          type: diff.change_type,
+          description: diff.description,
+          sourceLine: diff.file_a_start_line || undefined,
+          targetLine: diff.file_b_start_line
+        })
       }
     }
   })
@@ -107,7 +153,7 @@ export default function JsonBackendDiffViewer({
     if (stmtChangeType === 'deleted') {
       return { background: '#ffeef0', borderLeft: '3px solid #d73a49' }
     }
-    if (stmtChangeType === 'modified' || stmtChangeType === 'type_changed') {
+    if (stmtChangeType === 'modified' || stmtChangeType === 'type_changed' || stmtChangeType === 'value_changed') {
       return { background: '#fff5e1', borderLeft: '3px solid #f59e0b' }
     }
     if (stmtChangeType === 'moved' || stmtChangeType === 'moved_modified') {
@@ -226,7 +272,8 @@ export default function JsonBackendDiffViewer({
                       background: 
                         stmtChange.type === 'added' ? '#22863a' :
                         stmtChange.type === 'deleted' ? '#d73a49' :
-                        stmtChange.type === 'modified' || stmtChange.type === 'type_changed' ? '#f59e0b' : '#6366f1',
+                        stmtChange.type === 'modified' || stmtChange.type === 'type_changed' || stmtChange.type === 'value_changed' ? '#f59e0b' :
+                        stmtChange.type === 'moved' || stmtChange.type === 'moved_modified' ? '#0284c7' : '#6366f1',
                       color: 'white',
                       opacity: 0.9,
                       whiteSpace: 'nowrap'
@@ -239,6 +286,7 @@ export default function JsonBackendDiffViewer({
                         </>
                       )}
                       {stmtChange.type === 'modified' && '🔄 MODIFIED'}
+                      {stmtChange.type === 'value_changed' && '🔄 VALUE'}
                       {stmtChange.type === 'type_changed' && '🔀 TYPE'}
                       {stmtChange.type === 'moved' && (
                         <>
@@ -318,7 +366,8 @@ export default function JsonBackendDiffViewer({
                       background: 
                         stmtChange.type === 'added' ? '#22863a' :
                         stmtChange.type === 'deleted' ? '#d73a49' :
-                        stmtChange.type === 'modified' || stmtChange.type === 'type_changed' ? '#f59e0b' : '#6366f1',
+                        stmtChange.type === 'modified' || stmtChange.type === 'type_changed' || stmtChange.type === 'value_changed' ? '#f59e0b' :
+                        stmtChange.type === 'moved' || stmtChange.type === 'moved_modified' ? '#0284c7' : '#6366f1',
                       color: 'white',
                       opacity: 0.9,
                       whiteSpace: 'nowrap'
@@ -331,6 +380,7 @@ export default function JsonBackendDiffViewer({
                       )}
                       {stmtChange.type === 'deleted' && '➖ DELETED'}
                       {stmtChange.type === 'modified' && '🔄 MODIFIED'}
+                      {stmtChange.type === 'value_changed' && '🔄 VALUE'}
                       {stmtChange.type === 'type_changed' && '🔀 TYPE'}
                       {stmtChange.type === 'moved' && (
                         <>

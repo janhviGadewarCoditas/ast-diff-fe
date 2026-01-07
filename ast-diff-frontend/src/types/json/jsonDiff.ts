@@ -44,16 +44,22 @@ export interface JsonStatementDiff {
   change_type: string
   code: string
   node_type: string
-  file_a_line: number | null
-  file_a_index: number | null
-  file_b_line: number | null
-  file_b_index: number | null
+  file_a_line?: number | null
+  file_a_index?: number | null
+  file_a_start_line?: number | null
+  file_a_end_line?: number | null
+  file_b_line?: number | null
+  file_b_index?: number | null
+  file_b_start_line?: number | null
+  file_b_end_line?: number | null
   description: string
   old_code: string | null
   similarity_score: number | null
   child_diffs: JsonStatementDiff[]
   is_container: boolean
   branch_label: string | null
+  old_index?: number | null
+  new_index?: number | null
 }
 
 
