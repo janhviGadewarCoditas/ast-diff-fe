@@ -8,6 +8,33 @@ interface JsonBackendDiffViewerProps {
   fileBName: string
 }
 
+// Helper component to highlight the value portion of a JSON line
+function HighlightedLine({ line, highlightType }: { line: string, highlightType: 'value_changed' | 'type_changed' | null }) {
+  if (!highlightType) {
+    return <>{line}</>
+  }
+
+  // Find the colon that separates key from value
+  const colonIndex = line.indexOf(':')
+  if (colonIndex === -1) {
+    return <>{line}</>
+  }
+
+  const keyPart = line.substring(0, colonIndex + 1) // Include the colon
+  const valuePart = line.substring(colonIndex + 1)
+
+  const highlightStyle = highlightType === 'value_changed' 
+    ? { background: '#fef08a', color: '#854d0e', fontWeight: '600' as const, padding: '0 2px', borderRadius: '2px' }
+    : { background: '#e9d5ff', color: '#581c87', fontWeight: '600' as const, padding: '0 2px', borderRadius: '2px' }
+
+  return (
+    <>
+      {keyPart}
+      <span style={highlightStyle}>{valuePart}</span>
+    </>
+  )
+}
+
 export default function JsonBackendDiffViewer({ 
   differences, 
   fileAContent, 
@@ -114,12 +141,9 @@ export default function JsonBackendDiffViewer({
       mapStatementDiffsRecursively(diff.statement_diffs)
     }
     
-    // For moved/moved_modified blocks WITHOUT statement_diffs, highlight the first line with block-level change
-    const hasStatementDiffs = diff.statement_diffs && diff.statement_diffs.length > 0
-    const shouldUseBlockLevelChange = (diff.change_type === 'moved' || diff.change_type === 'moved_modified') && !hasStatementDiffs
-    
-    if (shouldUseBlockLevelChange) {
-      // For moved blocks without detailed diffs, set the block-level change on the start lines
+    // For moved/moved_modified blocks, ALWAYS show the block-level badge on the first line
+    if (diff.change_type === 'moved' || diff.change_type === 'moved_modified') {
+      // Set the block-level change on the start lines (will be overridden if child has more specific change)
       if (diff.file_a_start_line && !statementChangesA.has(diff.file_a_start_line)) {
         statementChangesA.set(diff.file_a_start_line, {
           type: diff.change_type,
@@ -153,11 +177,17 @@ export default function JsonBackendDiffViewer({
     if (stmtChangeType === 'deleted') {
       return { background: '#ffeef0', borderLeft: '3px solid #d73a49' }
     }
-    if (stmtChangeType === 'modified' || stmtChangeType === 'type_changed' || stmtChangeType === 'value_changed') {
-      return { background: '#fff5e1', borderLeft: '3px solid #f59e0b' }
+    if (stmtChangeType === 'value_changed') {
+      return { background: '#fefce8', borderLeft: '3px solid #eab308' }
+    }
+    if (stmtChangeType === 'type_changed') {
+      return { background: '#faf5ff', borderLeft: '3px solid #a855f7' }
     }
     if (stmtChangeType === 'moved' || stmtChangeType === 'moved_modified') {
       return { background: '#e0f2fe', borderLeft: '3px solid #0284c7' }
+    }
+    if (stmtChangeType === 'modified') {
+      return { background: 'white', borderLeft: '3px solid transparent' }
     }
 
     if (!isAffected || !changeType) {
@@ -170,7 +200,7 @@ export default function JsonBackendDiffViewer({
       case 'deleted':
         return { background: '#ffeef0', borderLeft: '3px solid #d73a49' }
       case 'modified':
-        return { background: '#fff5e1', borderLeft: '3px solid #f59e0b' }
+        return { background: 'white', borderLeft: '3px solid transparent' }
       case 'moved_modified':
         return { background: '#e0f2fe', borderLeft: '3px solid #0284c7' }
       case 'moved':
@@ -257,7 +287,10 @@ export default function JsonBackendDiffViewer({
                     lineHeight: '1.5',
                     fontWeight: stmtChange ? '600' : '400'
                   }}>
-                    {line || ' '}
+                    {stmtChange && (stmtChange.type === 'value_changed' || stmtChange.type === 'type_changed') 
+                      ? <HighlightedLine line={line} highlightType={stmtChange.type} />
+                      : (line || ' ')
+                    }
                   </pre>
                   {stmtChange && stmtChange.type !== 'modified' && (
                     // For moved/moved_modified, only show badge on the start line (when targetLine is defined)
@@ -277,7 +310,8 @@ export default function JsonBackendDiffViewer({
                       background: 
                         stmtChange.type === 'added' ? '#22863a' :
                         stmtChange.type === 'deleted' ? '#d73a49' :
-                        stmtChange.type === 'type_changed' || stmtChange.type === 'value_changed' ? '#f59e0b' :
+                        stmtChange.type === 'value_changed' ? '#eab308' :
+                        stmtChange.type === 'type_changed' ? '#a855f7' :
                         stmtChange.type === 'moved' || stmtChange.type === 'moved_modified' ? '#0284c7' : '#6366f1',
                       color: 'white',
                       opacity: 0.9,
@@ -355,7 +389,10 @@ export default function JsonBackendDiffViewer({
                     lineHeight: '1.5',
                     fontWeight: stmtChange ? '600' : '400'
                   }}>
-                    {line || ' '}
+                    {stmtChange && (stmtChange.type === 'value_changed' || stmtChange.type === 'type_changed') 
+                      ? <HighlightedLine line={line} highlightType={stmtChange.type} />
+                      : (line || ' ')
+                    }
                   </pre>
                   {stmtChange && stmtChange.type !== 'modified' && (
                     // For moved/moved_modified, only show badge on the start line (when sourceLine is defined)
@@ -375,7 +412,8 @@ export default function JsonBackendDiffViewer({
                       background: 
                         stmtChange.type === 'added' ? '#22863a' :
                         stmtChange.type === 'deleted' ? '#d73a49' :
-                        stmtChange.type === 'type_changed' || stmtChange.type === 'value_changed' ? '#f59e0b' :
+                        stmtChange.type === 'value_changed' ? '#eab308' :
+                        stmtChange.type === 'type_changed' ? '#a855f7' :
                         stmtChange.type === 'moved' || stmtChange.type === 'moved_modified' ? '#0284c7' : '#6366f1',
                       color: 'white',
                       opacity: 0.9,
