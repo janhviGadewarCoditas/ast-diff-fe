@@ -259,7 +259,12 @@ export default function JsonBackendDiffViewer({
                   }}>
                     {line || ' '}
                   </pre>
-                  {stmtChange && (
+                  {stmtChange && stmtChange.type !== 'modified' && (
+                    // For moved/moved_modified, only show badge on the start line (when targetLine is defined)
+                    // For other types, always show the badge
+                    ((stmtChange.type === 'moved' || stmtChange.type === 'moved_modified') && stmtChange.targetLine) || 
+                    (stmtChange.type !== 'moved' && stmtChange.type !== 'moved_modified')
+                  ) && (
                     <div style={{
                       position: 'absolute',
                       right: '8px',
@@ -272,7 +277,7 @@ export default function JsonBackendDiffViewer({
                       background: 
                         stmtChange.type === 'added' ? '#22863a' :
                         stmtChange.type === 'deleted' ? '#d73a49' :
-                        stmtChange.type === 'modified' || stmtChange.type === 'type_changed' || stmtChange.type === 'value_changed' ? '#f59e0b' :
+                        stmtChange.type === 'type_changed' || stmtChange.type === 'value_changed' ? '#f59e0b' :
                         stmtChange.type === 'moved' || stmtChange.type === 'moved_modified' ? '#0284c7' : '#6366f1',
                       color: 'white',
                       opacity: 0.9,
@@ -285,7 +290,6 @@ export default function JsonBackendDiffViewer({
                           {stmtChange.targetLine && ` → ${stmtChange.targetLine}`}
                         </>
                       )}
-                      {stmtChange.type === 'modified' && '🔄 MODIFIED'}
                       {stmtChange.type === 'value_changed' && '🔄 VALUE'}
                       {stmtChange.type === 'type_changed' && '🔀 TYPE'}
                       {stmtChange.type === 'moved' && (
@@ -353,7 +357,12 @@ export default function JsonBackendDiffViewer({
                   }}>
                     {line || ' '}
                   </pre>
-                  {stmtChange && (
+                  {stmtChange && stmtChange.type !== 'modified' && (
+                    // For moved/moved_modified, only show badge on the start line (when sourceLine is defined)
+                    // For other types, always show the badge
+                    ((stmtChange.type === 'moved' || stmtChange.type === 'moved_modified') && stmtChange.sourceLine) || 
+                    (stmtChange.type !== 'moved' && stmtChange.type !== 'moved_modified')
+                  ) && (
                     <div style={{
                       position: 'absolute',
                       right: '8px',
@@ -366,7 +375,7 @@ export default function JsonBackendDiffViewer({
                       background: 
                         stmtChange.type === 'added' ? '#22863a' :
                         stmtChange.type === 'deleted' ? '#d73a49' :
-                        stmtChange.type === 'modified' || stmtChange.type === 'type_changed' || stmtChange.type === 'value_changed' ? '#f59e0b' :
+                        stmtChange.type === 'type_changed' || stmtChange.type === 'value_changed' ? '#f59e0b' :
                         stmtChange.type === 'moved' || stmtChange.type === 'moved_modified' ? '#0284c7' : '#6366f1',
                       color: 'white',
                       opacity: 0.9,
@@ -379,7 +388,6 @@ export default function JsonBackendDiffViewer({
                         </>
                       )}
                       {stmtChange.type === 'deleted' && '➖ DELETED'}
-                      {stmtChange.type === 'modified' && '🔄 MODIFIED'}
                       {stmtChange.type === 'value_changed' && '🔄 VALUE'}
                       {stmtChange.type === 'type_changed' && '🔀 TYPE'}
                       {stmtChange.type === 'moved' && (
