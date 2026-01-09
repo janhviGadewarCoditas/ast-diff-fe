@@ -141,8 +141,13 @@ export default function JsonBackendDiffViewer({
       mapStatementDiffsRecursively(diff.statement_diffs)
     }
     
-    // For moved/moved_modified blocks, ALWAYS show the block-level badge on the first line
-    if (diff.change_type === 'moved' || diff.change_type === 'moved_modified') {
+    // For added/moved/moved_modified blocks without statement_diffs, show the block-level badge
+    const hasStatementDiffs = diff.statement_diffs && diff.statement_diffs.length > 0
+    const shouldShowBlockLevelBadge = (diff.change_type === 'added' && !hasStatementDiffs) || 
+                                      diff.change_type === 'moved' || 
+                                      diff.change_type === 'moved_modified'
+    
+    if (shouldShowBlockLevelBadge) {
       // Set the block-level change on the start lines (will be overridden if child has more specific change)
       if (diff.file_a_start_line && !statementChangesA.has(diff.file_a_start_line)) {
         statementChangesA.set(diff.file_a_start_line, {
