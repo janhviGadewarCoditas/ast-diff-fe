@@ -324,8 +324,8 @@ export default function JsonBackendDiffViewer({
                           {stmtChange.targetLine && ` → ${stmtChange.targetLine}`}
                         </>
                       )}
-                      {stmtChange.type === 'value_changed' && '🔄 VALUE'}
-                      {stmtChange.type === 'type_changed' && '🔀 TYPE'}
+                      {stmtChange.type === 'value_changed' && '🔄 VALUE CHANGED'}
+                      {stmtChange.type === 'type_changed' && '🔀 TYPE CHANGED'}
                       {stmtChange.type === 'moved' && (
                         <>
                           ↔️ MOVED
@@ -426,8 +426,8 @@ export default function JsonBackendDiffViewer({
                         </>
                       )}
                       {stmtChange.type === 'deleted' && '➖ DELETED'}
-                      {stmtChange.type === 'value_changed' && '🔄 VALUE'}
-                      {stmtChange.type === 'type_changed' && '🔀 TYPE'}
+                      {stmtChange.type === 'value_changed' && '🔄 VALUE CHANGED'}
+                      {stmtChange.type === 'type_changed' && '🔀 TYPE CHANGED'}
                       {stmtChange.type === 'moved' && (
                         <>
                           ↔️ MOVED
