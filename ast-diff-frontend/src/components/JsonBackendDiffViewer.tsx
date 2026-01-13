@@ -8,8 +8,18 @@ interface JsonBackendDiffViewerProps {
   fileBName: string
 }
 
-// Helper component to highlight the value portion of a JSON line
-function HighlightedLine({ line, highlightType }: { line: string, highlightType: 'value_changed' | 'type_changed' | null }) {
+// Helper component to highlight specific keyword-level changes in a JSON line
+function HighlightedLine({ 
+  line, 
+  highlightType, 
+  valueChanges,
+  isFileA 
+}: { 
+  line: string
+  highlightType: 'value_changed' | 'type_changed' | null
+  valueChanges?: Array<{ old: string, new: string, type: string }>
+  isFileA: boolean
+}) {
   if (!highlightType) {
     return <>{line}</>
   }
@@ -23,6 +33,61 @@ function HighlightedLine({ line, highlightType }: { line: string, highlightType:
   const keyPart = line.substring(0, colonIndex + 1) // Include the colon
   const valuePart = line.substring(colonIndex + 1)
 
+  // If we have value_changes, highlight only the changed keywords
+  if (highlightType === 'value_changed' && valueChanges && valueChanges.length > 0) {
+    const highlightStyle = { 
+      background: '#fef08a', 
+      color: '#854d0e', 
+      fontWeight: '600' as const, 
+      padding: '0 2px', 
+      borderRadius: '2px' 
+    }
+
+    // Build a list of text segments with their highlight status
+    let remainingText = valuePart
+    const segments: Array<{ text: string, highlight: boolean }> = []
+    
+    // Get the relevant changes based on which file we're in
+    const relevantChanges = valueChanges.filter(change => change.type === 'changed')
+    const searchTexts = isFileA 
+      ? relevantChanges.map(c => c.old)
+      : relevantChanges.map(c => c.new)
+
+    // Find and mark all occurrences of changed text
+    for (const searchText of searchTexts) {
+      const index = remainingText.indexOf(searchText)
+      if (index !== -1) {
+        // Add text before the match (unhighlighted)
+        if (index > 0) {
+          segments.push({ text: remainingText.substring(0, index), highlight: false })
+        }
+        // Add the matched text (highlighted)
+        segments.push({ text: searchText, highlight: true })
+        // Update remaining text
+        remainingText = remainingText.substring(index + searchText.length)
+      }
+    }
+    
+    // Add any remaining text (unhighlighted)
+    if (remainingText) {
+      segments.push({ text: remainingText, highlight: false })
+    }
+
+    return (
+      <>
+        {keyPart}
+        {segments.map((segment, idx) => 
+          segment.highlight ? (
+            <span key={idx} style={highlightStyle}>{segment.text}</span>
+          ) : (
+            <span key={idx}>{segment.text}</span>
+          )
+        )}
+      </>
+    )
+  }
+
+  // Fallback to highlighting the entire value (for type_changed or when no value_changes)
   const highlightStyle = highlightType === 'value_changed' 
     ? { background: '#fef08a', color: '#854d0e', fontWeight: '600' as const, padding: '0 2px', borderRadius: '2px' }
     : { background: '#e9d5ff', color: '#581c87', fontWeight: '600' as const, padding: '0 2px', borderRadius: '2px' }
@@ -50,8 +115,8 @@ export default function JsonBackendDiffViewer({
   const lineChanges = new Map<number, JsonDifference>()
   const lineChangesB = new Map<number, JsonDifference>()
   
-  const statementChangesA = new Map<number, { type: string, description: string, targetLine?: number, sourceLine?: number }>()
-  const statementChangesB = new Map<number, { type: string, description: string, targetLine?: number, sourceLine?: number }>()
+  const statementChangesA = new Map<number, { type: string, description: string, targetLine?: number, sourceLine?: number, valueChanges?: Array<{ old: string, new: string, type: string }> }>()
+  const statementChangesB = new Map<number, { type: string, description: string, targetLine?: number, sourceLine?: number, valueChanges?: Array<{ old: string, new: string, type: string }> }>()
 
   differences.forEach(diff => {
     if (diff.file_a_start_line && diff.file_a_end_line) {
@@ -92,7 +157,8 @@ export default function JsonBackendDiffViewer({
                   type: stmtDiff.change_type,
                   description: stmtDiff.description,
                   targetLine: i === startLine ? stmtDiff.file_b_start_line : undefined,
-                  sourceLine: startLine
+                  sourceLine: startLine,
+                  valueChanges: stmtDiff.value_changes
                 })
               }
             }
@@ -109,7 +175,8 @@ export default function JsonBackendDiffViewer({
                   type: stmtDiff.change_type,
                   description: stmtDiff.description,
                   sourceLine: i === startLine ? stmtDiff.file_a_start_line : undefined,
-                  targetLine: startLine
+                  targetLine: startLine,
+                  valueChanges: stmtDiff.value_changes
                 })
               }
             }
@@ -121,7 +188,8 @@ export default function JsonBackendDiffViewer({
               type: stmtDiff.change_type,
               description: stmtDiff.description,
               targetLine: stmtDiff.file_b_line,
-              sourceLine: stmtDiff.file_a_line
+              sourceLine: stmtDiff.file_a_line,
+              valueChanges: stmtDiff.value_changes
             })
           }
           if (stmtDiff.file_b_line && !statementChangesB.has(stmtDiff.file_b_line)) {
@@ -129,7 +197,8 @@ export default function JsonBackendDiffViewer({
               type: stmtDiff.change_type,
               description: stmtDiff.description,
               sourceLine: stmtDiff.file_a_line,
-              targetLine: stmtDiff.file_b_line
+              targetLine: stmtDiff.file_b_line,
+              valueChanges: stmtDiff.value_changes
             })
           }
         }
@@ -154,7 +223,8 @@ export default function JsonBackendDiffViewer({
           type: diff.change_type,
           description: diff.description,
           targetLine: diff.file_b_start_line || undefined,
-          sourceLine: diff.file_a_start_line
+          sourceLine: diff.file_a_start_line,
+          valueChanges: undefined
         })
       }
       if (diff.file_b_start_line && !statementChangesB.has(diff.file_b_start_line)) {
@@ -162,7 +232,8 @@ export default function JsonBackendDiffViewer({
           type: diff.change_type,
           description: diff.description,
           sourceLine: diff.file_a_start_line || undefined,
-          targetLine: diff.file_b_start_line
+          targetLine: diff.file_b_start_line,
+          valueChanges: undefined
         })
       }
     }
@@ -293,7 +364,12 @@ export default function JsonBackendDiffViewer({
                     fontWeight: stmtChange ? '600' : '400'
                   }}>
                     {stmtChange && (stmtChange.type === 'value_changed' || stmtChange.type === 'type_changed') 
-                      ? <HighlightedLine line={line} highlightType={stmtChange.type} />
+                      ? <HighlightedLine 
+                          line={line} 
+                          highlightType={stmtChange.type} 
+                          valueChanges={stmtChange.valueChanges}
+                          isFileA={true}
+                        />
                       : (line || ' ')
                     }
                   </pre>
@@ -395,7 +471,12 @@ export default function JsonBackendDiffViewer({
                     fontWeight: stmtChange ? '600' : '400'
                   }}>
                     {stmtChange && (stmtChange.type === 'value_changed' || stmtChange.type === 'type_changed') 
-                      ? <HighlightedLine line={line} highlightType={stmtChange.type} />
+                      ? <HighlightedLine 
+                          line={line} 
+                          highlightType={stmtChange.type} 
+                          valueChanges={stmtChange.valueChanges}
+                          isFileA={false}
+                        />
                       : (line || ' ')
                     }
                   </pre>
