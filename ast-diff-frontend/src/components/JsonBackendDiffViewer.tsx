@@ -73,17 +73,34 @@ function HighlightedLine({
 
     // Build a list of positions to highlight
     const highlightPositions: Array<{ start: number, end: number }> = []
+    
     for (const searchText of searchTexts) {
-      let startIndex = 0
-      while (true) {
-        const index = valuePart.indexOf(searchText, startIndex)
-        if (index === -1) break
+      // Backend sends parsed text (PROCESS="0")
+      // File has escaped quotes (PROCESS=\"0\")
+      // Try original first, then with escaped quotes
+      const searchVariants: string[] = [
+        searchText,
+        searchText.replace(/"/g, '\\"')  // Add backslash before quotes
+      ]
+      
+      // Try each variant and use the first one that finds matches
+      for (const variant of searchVariants) {
+        let startIndex = 0
+        const initialPosCount = highlightPositions.length
         
-        highlightPositions.push({
-          start: index,
-          end: index + searchText.length
-        })
-        startIndex = index + searchText.length
+        while (true) {
+          const index = valuePart.indexOf(variant, startIndex)
+          if (index === -1) break
+          
+          highlightPositions.push({
+            start: index,
+            end: index + variant.length
+          })
+          startIndex = index + variant.length
+        }
+        
+        // If we found matches with this variant, don't try other variants
+        if (highlightPositions.length > initialPosCount) break
       }
     }
 
