@@ -43,34 +43,93 @@ function HighlightedLine({
       borderRadius: '2px' 
     }
 
-    // Build a list of text segments with their highlight status
-    let remainingText = valuePart
-    const segments: Array<{ text: string, highlight: boolean }> = []
+    // Collect all text segments that need to be highlighted based on change type and which file
+    const searchTexts: string[] = []
     
-    // Get the relevant changes based on which file we're in
-    const relevantChanges = valueChanges.filter(change => change.type === 'changed')
-    const searchTexts = isFileA 
-      ? relevantChanges.map(c => c.old)
-      : relevantChanges.map(c => c.new)
-
-    // Find and mark all occurrences of changed text
-    for (const searchText of searchTexts) {
-      const index = remainingText.indexOf(searchText)
-      if (index !== -1) {
-        // Add text before the match (unhighlighted)
-        if (index > 0) {
-          segments.push({ text: remainingText.substring(0, index), highlight: false })
+    for (const change of valueChanges) {
+      if (change.type === 'changed') {
+        // For 'changed' type: highlight old in File A, new in File B
+        const text = isFileA ? change.old : change.new
+        if (text) {
+          searchTexts.push(text)
         }
-        // Add the matched text (highlighted)
-        segments.push({ text: searchText, highlight: true })
-        // Update remaining text
-        remainingText = remainingText.substring(index + searchText.length)
+      } else if (change.type === 'added' && !isFileA) {
+        // For 'added' type: only highlight in File B (new file)
+        if (change.new) {
+          searchTexts.push(change.new)
+        }
+      } else if (change.type === 'deleted' && isFileA) {
+        // For 'deleted' type: only highlight in File A (old file)
+        if (change.old) {
+          searchTexts.push(change.old)
+        }
       }
     }
+
+    // If no search texts, just return the line as-is
+    if (searchTexts.length === 0) {
+      return <>{line}</>
+    }
+
+    // Build a list of positions to highlight
+    const highlightPositions: Array<{ start: number, end: number }> = []
+    for (const searchText of searchTexts) {
+      let startIndex = 0
+      while (true) {
+        const index = valuePart.indexOf(searchText, startIndex)
+        if (index === -1) break
+        
+        highlightPositions.push({
+          start: index,
+          end: index + searchText.length
+        })
+        startIndex = index + searchText.length
+      }
+    }
+
+    // Sort and merge overlapping positions
+    highlightPositions.sort((a, b) => a.start - b.start)
+    const mergedPositions: Array<{ start: number, end: number }> = []
+    for (const pos of highlightPositions) {
+      if (mergedPositions.length === 0) {
+        mergedPositions.push(pos)
+      } else {
+        const last = mergedPositions[mergedPositions.length - 1]
+        if (pos.start <= last.end) {
+          // Overlapping or adjacent, merge them
+          last.end = Math.max(last.end, pos.end)
+        } else {
+          mergedPositions.push(pos)
+        }
+      }
+    }
+
+    // Build segments based on merged positions
+    const segments: Array<{ text: string, highlight: boolean }> = []
+    let currentPos = 0
     
-    // Add any remaining text (unhighlighted)
-    if (remainingText) {
-      segments.push({ text: remainingText, highlight: false })
+    for (const pos of mergedPositions) {
+      // Add unhighlighted text before this position
+      if (pos.start > currentPos) {
+        segments.push({
+          text: valuePart.substring(currentPos, pos.start),
+          highlight: false
+        })
+      }
+      // Add highlighted text
+      segments.push({
+        text: valuePart.substring(pos.start, pos.end),
+        highlight: true
+      })
+      currentPos = pos.end
+    }
+    
+    // Add any remaining unhighlighted text
+    if (currentPos < valuePart.length) {
+      segments.push({
+        text: valuePart.substring(currentPos),
+        highlight: false
+      })
     }
 
     return (
