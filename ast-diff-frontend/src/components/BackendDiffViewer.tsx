@@ -42,35 +42,102 @@ export default function BackendDiffViewer({
       }
     }
     
-    // Map statement-level diffs to specific lines (recursively)
-    if (diff.statement_diffs && diff.statement_diffs.length > 0) {
-      const mapStatementDiffsRecursively = (stmtDiffs: any[]) => {
-        stmtDiffs.forEach(stmtDiff => {
-          if (stmtDiff.file_a_line) {
+    // Map statement-level diffs to specific lines (recursively, depth-first)
+    const mapStatementDiffsRecursively = (stmtDiffs: any[]) => {
+      stmtDiffs.forEach(stmtDiff => {
+        // Process child diffs FIRST (depth-first traversal) so children take precedence
+        const hasChildren = stmtDiff.child_diffs && stmtDiff.child_diffs.length > 0
+        if (hasChildren) {
+          mapStatementDiffsRecursively(stmtDiff.child_diffs)
+        }
+        
+        // Check if this statement diff has line range properties
+        const hasLineRange = stmtDiff.file_a_start_line !== undefined || stmtDiff.file_b_start_line !== undefined
+        
+        if (hasLineRange) {
+          // Handle line ranges for moved, added, deleted, modified items
+          if (stmtDiff.file_a_start_line && stmtDiff.file_a_end_line) {
+            const startLine = stmtDiff.file_a_start_line
+            const endLine = stmtDiff.file_a_end_line
+            for (let i = startLine; i <= endLine; i++) {
+              // Only set if not already set by a more specific child diff
+              if (!statementChangesA.has(i)) {
+                statementChangesA.set(i, {
+                  type: stmtDiff.change_type,
+                  description: stmtDiff.description,
+                  targetLine: i === startLine ? stmtDiff.file_b_start_line : undefined,
+                  sourceLine: startLine
+                })
+              }
+            }
+          }
+          
+          if (stmtDiff.file_b_start_line && stmtDiff.file_b_end_line) {
+            const startLine = stmtDiff.file_b_start_line
+            const endLine = stmtDiff.file_b_end_line
+            for (let i = startLine; i <= endLine; i++) {
+              // Only set if not already set by a more specific child diff
+              if (!statementChangesB.has(i)) {
+                statementChangesB.set(i, {
+                  type: stmtDiff.change_type,
+                  description: stmtDiff.description,
+                  sourceLine: i === startLine ? stmtDiff.file_a_start_line : undefined,
+                  targetLine: startLine
+                })
+              }
+            }
+          }
+        } else {
+          // Handle single line properties (legacy support)
+          if (stmtDiff.file_a_line && !statementChangesA.has(stmtDiff.file_a_line)) {
             statementChangesA.set(stmtDiff.file_a_line, {
               type: stmtDiff.change_type,
               description: stmtDiff.description,
-              targetLine: stmtDiff.file_b_line, // Where it moved TO
+              targetLine: stmtDiff.file_b_line,
               sourceLine: stmtDiff.file_a_line
             })
           }
-          if (stmtDiff.file_b_line) {
+          if (stmtDiff.file_b_line && !statementChangesB.has(stmtDiff.file_b_line)) {
             statementChangesB.set(stmtDiff.file_b_line, {
               type: stmtDiff.change_type,
               description: stmtDiff.description,
-              sourceLine: stmtDiff.file_a_line, // Where it came FROM
+              sourceLine: stmtDiff.file_a_line,
               targetLine: stmtDiff.file_b_line
             })
           }
-          
-          // Recursively process child_diffs
-          if (stmtDiff.child_diffs && stmtDiff.child_diffs.length > 0) {
-            mapStatementDiffsRecursively(stmtDiff.child_diffs)
-          }
+        }
+      })
+    }
+    
+    // ALWAYS process statement_diffs if they exist
+    if (diff.statement_diffs && diff.statement_diffs.length > 0) {
+      mapStatementDiffsRecursively(diff.statement_diffs)
+    }
+    
+    // For added/moved/moved_modified blocks without statement_diffs, show the block-level badge
+    const hasStatementDiffs = diff.statement_diffs && diff.statement_diffs.length > 0
+    const shouldShowBlockLevelBadge = (diff.change_type === 'added' && !hasStatementDiffs) || 
+                                      diff.change_type === 'moved' || 
+                                      diff.change_type === 'moved_modified'
+    
+    if (shouldShowBlockLevelBadge) {
+      // Set the block-level change on the start lines (will be overridden if child has more specific change)
+      if (diff.file_a_start_line && !statementChangesA.has(diff.file_a_start_line)) {
+        statementChangesA.set(diff.file_a_start_line, {
+          type: diff.change_type,
+          description: diff.description,
+          targetLine: diff.file_b_start_line || undefined,
+          sourceLine: diff.file_a_start_line
         })
       }
-      
-      mapStatementDiffsRecursively(diff.statement_diffs)
+      if (diff.file_b_start_line && !statementChangesB.has(diff.file_b_start_line)) {
+        statementChangesB.set(diff.file_b_start_line, {
+          type: diff.change_type,
+          description: diff.description,
+          sourceLine: diff.file_a_start_line || undefined,
+          targetLine: diff.file_b_start_line
+        })
+      }
     }
   })
 
@@ -93,35 +160,36 @@ export default function BackendDiffViewer({
     if (statementChangeType) {
       switch (statementChangeType) {
         case 'added':
-          return { background: '#ccffd8', borderLeft: '4px solid #22863a' }
+          return { background: '#e6ffed', borderLeft: '3px solid #22863a' }
         case 'deleted':
-          return { background: '#ffd7dc', borderLeft: '4px solid #d73a49' }
+          return { background: '#ffeef0', borderLeft: '3px solid #d73a49' }
         case 'modified':
-          return { background: '#ffe58f', borderLeft: '4px solid #f59e0b' }
+          return { background: 'white', borderLeft: '3px solid transparent' }
         case 'moved':
-          return { background: '#c7d2fe', borderLeft: '4px solid #6366f1' }
+        case 'moved_modified':
+          return { background: '#e0f2fe', borderLeft: '3px solid #0284c7' }
         default:
           break
       }
     }
     
     if (!isAffected || !changeType) {
-      return { background: 'transparent', borderLeft: '3px solid transparent' }
+      return { background: 'white', borderLeft: '3px solid transparent' }
     }
 
     switch (changeType) {
       case 'added':
-        return { background: '#e6ffec', borderLeft: '3px solid #22863a' }
+        return { background: '#e6ffed', borderLeft: '3px solid #22863a' }
       case 'deleted':
         return { background: '#ffeef0', borderLeft: '3px solid #d73a49' }
       case 'modified':
-        return { background: '#fff5b1', borderLeft: '3px solid #fbbf24' }
+        return { background: 'white', borderLeft: '3px solid transparent' }
       case 'moved_modified':
-        return { background: '#dbeafe', borderLeft: '3px solid #60a5fa' }
+        return { background: '#e0f2fe', borderLeft: '3px solid #0284c7' }
       case 'moved':
-        return { background: '#e0e7ff', borderLeft: '3px solid #818cf8' }
+        return { background: '#e0e7ff', borderLeft: '3px solid #6366f1' }
       default:
-        return { background: 'transparent', borderLeft: '3px solid transparent' }
+        return { background: 'white', borderLeft: '3px solid transparent' }
     }
   }
 
@@ -188,143 +256,8 @@ export default function BackendDiffViewer({
             </span>
           )}
         </div>
-        
-        {/* COMMENTED OUT: Show statement-level changes for modified/moved_modified blocks */}
-        {/* 
-        {diff.statement_diffs && diff.statement_diffs.length > 0 && (
-          <div style={{
-            padding: '8px 12px',
-            background: 'rgba(0,0,0,0.03)',
-            borderTop: `1px solid ${badge.color}`,
-            fontSize: '11px'
-          }}>
-            <div style={{ fontWeight: '600', marginBottom: '4px', color: '#374151' }}>
-              📝 Statement-level changes:
-            </div>
-            {renderRecursiveStatementDiffs(diff.statement_diffs, 0)}
-          </div>
-        )}
-        */}
       </div>
     )
-  }
-
-  const renderRecursiveStatementDiffs = (statements: any[], level: number): React.ReactNode => {
-    return statements.map((stmt, idx) => {
-      const stmtIcon = 
-        stmt.change_type === 'added' ? '➕' :
-        stmt.change_type === 'deleted' ? '➖' :
-        stmt.change_type === 'modified' ? '🔄' :
-        stmt.change_type === 'moved' ? '↔️' :
-        stmt.change_type === 'moved_modified' ? '🔄↔️' : '•'
-      
-      const stmtColor = 
-        stmt.change_type === 'added' ? '#22863a' :
-        stmt.change_type === 'deleted' ? '#d73a49' :
-        stmt.change_type === 'modified' ? '#f59e0b' :
-        stmt.change_type === 'moved' ? '#6366f1' :
-        stmt.change_type === 'moved_modified' ? '#3b82f6' : '#9ca3af'
-      
-      const indentLeft = level * 12
-      
-      return (
-        <div key={idx} style={{ marginLeft: `${indentLeft}px` }}>
-          <div
-            style={{
-              padding: '4px 8px',
-              marginBottom: '4px',
-              background: 'white',
-              borderLeft: `3px solid ${stmtColor}`,
-              borderRadius: '3px',
-              fontSize: '11px',
-              color: '#1f2937',
-              lineHeight: '1.4'
-            }}
-          >
-            {/* Branch label with line movement */}
-            {stmt.branch_label && (
-              <div style={{
-                fontSize: '10px',
-                fontWeight: '600',
-                color: '#6366f1',
-                marginBottom: '2px',
-                fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace"
-              }}>
-                🌿 {stmt.branch_label}
-                {stmt.file_a_line && stmt.file_b_line && stmt.file_a_line !== stmt.file_b_line && (
-                  <span style={{ marginLeft: '6px', color: '#8b5cf6', fontSize: '9px' }}>
-                    (line {stmt.file_a_line} → {stmt.file_b_line})
-                  </span>
-                )}
-              </div>
-            )}
-            
-            {/* Icon and description with line info */}
-            <div>
-              <span style={{ marginRight: '4px' }}>{stmtIcon}</span>
-              <span style={{ color: '#6b7280' }}>{stmt.description}</span>
-              {!stmt.branch_label && stmt.file_a_line && stmt.file_b_line && stmt.file_a_line !== stmt.file_b_line && (
-                <span style={{ 
-                  marginLeft: '6px', 
-                  color: '#8b5cf6', 
-                  fontSize: '9px',
-                  fontWeight: '600',
-                  fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace"
-                }}>
-                  (line {stmt.file_a_line} → {stmt.file_b_line})
-                </span>
-              )}
-            </div>
-            
-            {/* Old code vs new code comparison */}
-            {stmt.old_code && stmt.code && stmt.old_code !== stmt.code && (
-              <div style={{ marginTop: '4px', fontSize: '10px' }}>
-                <div style={{ color: '#f87171', marginBottom: '2px' }}>
-                  ❌ Old: <code style={{ fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace", background: '#fee2e2', padding: '2px 4px', borderRadius: '2px' }}>{stmt.old_code.substring(0, 50)}{stmt.old_code.length > 50 ? '...' : ''}</code>
-                </div>
-                <div style={{ color: '#22863a' }}>
-                  ✅ New: <code style={{ fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace", background: '#dcfce7', padding: '2px 4px', borderRadius: '2px' }}>{stmt.code.substring(0, 50)}{stmt.code.length > 50 ? '...' : ''}</code>
-                </div>
-              </div>
-            )}
-            
-            {/* Similarity score */}
-            {stmt.similarity_score !== null && stmt.similarity_score !== undefined && (
-              <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
-                📊 {(stmt.similarity_score * 100).toFixed(1)}% similar
-              </div>
-            )}
-            
-            {/* Is container indicator */}
-            {stmt.is_container && (
-              <div style={{ fontSize: '10px', color: '#8b5cf6', marginTop: '2px' }}>
-                📦 Container node
-              </div>
-            )}
-          </div>
-          
-          {/* Render child diffs recursively */}
-          {stmt.child_diffs && stmt.child_diffs.length > 0 && (
-            <div style={{
-              marginLeft: '8px',
-              borderLeft: '2px dashed #d1d5db',
-              paddingLeft: '6px',
-              marginBottom: '4px'
-            }}>
-              <div style={{
-                fontSize: '10px',
-                fontWeight: '600',
-                color: '#6b7280',
-                marginBottom: '4px'
-              }}>
-                ↳ Nested changes ({stmt.child_diffs.length}):
-              </div>
-              {renderRecursiveStatementDiffs(stmt.child_diffs, level + 1)}
-            </div>
-          )}
-        </div>
-      )
-    })
   }
 
   return (
@@ -410,7 +343,12 @@ export default function BackendDiffViewer({
                   }}>
                     {line || ' '}
                   </pre>
-                  {stmtChange && (
+                  {stmtChange && stmtChange.type !== 'modified' && (
+                    // For moved/moved_modified, only show badge on the start line (when targetLine is defined)
+                    // For other types, always show the badge
+                    ((stmtChange.type === 'moved' || stmtChange.type === 'moved_modified') && stmtChange.targetLine) || 
+                    (stmtChange.type !== 'moved' && stmtChange.type !== 'moved_modified')
+                  ) && (
                     <div style={{
                       position: 'absolute',
                       right: '8px',
@@ -423,7 +361,7 @@ export default function BackendDiffViewer({
                       background: 
                         stmtChange.type === 'added' ? '#22863a' :
                         stmtChange.type === 'deleted' ? '#d73a49' :
-                        stmtChange.type === 'modified' ? '#f59e0b' : '#6366f1',
+                        stmtChange.type === 'moved' || stmtChange.type === 'moved_modified' ? '#0284c7' : '#6366f1',
                       color: 'white',
                       opacity: 0.9,
                       whiteSpace: 'nowrap'
@@ -435,10 +373,15 @@ export default function BackendDiffViewer({
                           {stmtChange.targetLine && ` → ${stmtChange.targetLine}`}
                         </>
                       )}
-                      {stmtChange.type === 'modified' && '🔄 MODIFIED'}
-                      {(stmtChange.type === 'moved' || stmtChange.type === 'moved_modified') && (
+                      {stmtChange.type === 'moved' && (
                         <>
                           ↔️ MOVED
+                          {stmtChange.targetLine && ` → ${stmtChange.targetLine}`}
+                        </>
+                      )}
+                      {stmtChange.type === 'moved_modified' && (
+                        <>
+                          ↔️ MOVED+MODIFIED
                           {stmtChange.targetLine && ` → ${stmtChange.targetLine}`}
                         </>
                       )}
@@ -500,7 +443,12 @@ export default function BackendDiffViewer({
                   }}>
                     {line || ' '}
                   </pre>
-                  {stmtChange && (
+                  {stmtChange && stmtChange.type !== 'modified' && (
+                    // For moved/moved_modified, only show badge on the start line (when sourceLine is defined)
+                    // For other types, always show the badge
+                    ((stmtChange.type === 'moved' || stmtChange.type === 'moved_modified') && stmtChange.sourceLine) || 
+                    (stmtChange.type !== 'moved' && stmtChange.type !== 'moved_modified')
+                  ) && (
                     <div style={{
                       position: 'absolute',
                       right: '8px',
@@ -513,7 +461,7 @@ export default function BackendDiffViewer({
                       background: 
                         stmtChange.type === 'added' ? '#22863a' :
                         stmtChange.type === 'deleted' ? '#d73a49' :
-                        stmtChange.type === 'modified' ? '#f59e0b' : '#6366f1',
+                        stmtChange.type === 'moved' || stmtChange.type === 'moved_modified' ? '#0284c7' : '#6366f1',
                       color: 'white',
                       opacity: 0.9,
                       whiteSpace: 'nowrap'
@@ -525,10 +473,15 @@ export default function BackendDiffViewer({
                         </>
                       )}
                       {stmtChange.type === 'deleted' && '➖ DELETED'}
-                      {stmtChange.type === 'modified' && '🔄 MODIFIED'}
-                      {(stmtChange.type === 'moved' || stmtChange.type === 'moved_modified') && (
+                      {stmtChange.type === 'moved' && (
                         <>
                           ↔️ MOVED
+                          {stmtChange.sourceLine && ` ← ${stmtChange.sourceLine}`}
+                        </>
+                      )}
+                      {stmtChange.type === 'moved_modified' && (
+                        <>
+                          ↔️ MOVED+MODIFIED
                           {stmtChange.sourceLine && ` ← ${stmtChange.sourceLine}`}
                         </>
                       )}
