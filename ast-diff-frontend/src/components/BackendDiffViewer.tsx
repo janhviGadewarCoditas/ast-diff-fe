@@ -8,6 +8,117 @@ interface BackendDiffViewerProps {
   fileBName: string
 }
 
+// Helper component to highlight specific token-level changes in a JavaScript line
+function HighlightedLine({ 
+  line, 
+  keywordChanges,
+  isFileA 
+}: { 
+  line: string
+  keywordChanges?: Array<{ old_token: string, new_token: string, old_start: number, old_end: number, new_start: number, new_end: number }>
+  isFileA: boolean
+}) {
+  if (!keywordChanges || keywordChanges.length === 0) {
+    return <>{line}</>
+  }
+
+  const highlightStyle = { 
+    background: '#fef08a', 
+    color: '#854d0e', 
+    fontWeight: '600' as const, 
+    padding: '0 2px', 
+    borderRadius: '2px' 
+  }
+
+  // Collect all tokens to search for
+  const tokensToFind: string[] = []
+  for (const change of keywordChanges) {
+    const token = isFileA ? change.old_token : change.new_token
+    tokensToFind.push(token)
+  }
+
+  // Find positions of all tokens in the line
+  const highlightPositions: Array<{ start: number, end: number }> = []
+  const usedPositions = new Set<string>() // Track "start-end" to avoid duplicates
+  
+  for (const token of tokensToFind) {
+    // Find all occurrences of this token in the line
+    let searchStart = 0
+    while (searchStart < line.length) {
+      const index = line.indexOf(token, searchStart)
+      if (index === -1) break
+      
+      const posKey = `${index}-${index + token.length}`
+      if (!usedPositions.has(posKey)) {
+        highlightPositions.push({
+          start: index,
+          end: index + token.length
+        })
+        usedPositions.add(posKey)
+        break // Only highlight first occurrence of each token
+      }
+      
+      searchStart = index + 1
+    }
+  }
+
+  // Sort and merge overlapping positions
+  highlightPositions.sort((a, b) => a.start - b.start)
+  const mergedPositions: Array<{ start: number, end: number }> = []
+  for (const pos of highlightPositions) {
+    if (mergedPositions.length === 0) {
+      mergedPositions.push({ start: pos.start, end: pos.end })
+    } else {
+      const last = mergedPositions[mergedPositions.length - 1]
+      if (pos.start <= last.end) {
+        last.end = Math.max(last.end, pos.end)
+      } else {
+        mergedPositions.push({ start: pos.start, end: pos.end })
+      }
+    }
+  }
+
+  // Build segments based on merged positions
+  const segments: Array<{ text: string, highlight: boolean }> = []
+  let currentPos = 0
+  
+  for (const pos of mergedPositions) {
+    // Add unhighlighted text before this position
+    if (pos.start > currentPos) {
+      segments.push({
+        text: line.substring(currentPos, pos.start),
+        highlight: false
+      })
+    }
+    // Add highlighted text
+    segments.push({
+      text: line.substring(pos.start, pos.end),
+      highlight: true
+    })
+    currentPos = pos.end
+  }
+  
+  // Add any remaining unhighlighted text
+  if (currentPos < line.length) {
+    segments.push({
+      text: line.substring(currentPos),
+      highlight: false
+    })
+  }
+
+  return (
+    <>
+      {segments.map((segment, idx) => 
+        segment.highlight ? (
+          <span key={idx} style={highlightStyle}>{segment.text}</span>
+        ) : (
+          <span key={idx}>{segment.text}</span>
+        )
+      )}
+    </>
+  )
+}
+
 export default function BackendDiffViewer({ 
   differences, 
   fileAContent, 
@@ -25,8 +136,8 @@ export default function BackendDiffViewer({
   const lineChangesB = new Map<number, Difference>()
   
   // Track statement-level changes within blocks
-  const statementChangesA = new Map<number, { type: string, description: string, targetLine?: number, sourceLine?: number }>()
-  const statementChangesB = new Map<number, { type: string, description: string, targetLine?: number, sourceLine?: number }>()
+  const statementChangesA = new Map<number, { type: string, description: string, targetLine?: number, sourceLine?: number, keywordChanges?: any[] }>()
+  const statementChangesB = new Map<number, { type: string, description: string, targetLine?: number, sourceLine?: number, keywordChanges?: any[] }>()
 
   differences.forEach(diff => {
     if (diff.file_a_start_line && diff.file_a_end_line) {
@@ -42,15 +153,10 @@ export default function BackendDiffViewer({
       }
     }
     
-    // Map statement-level diffs to specific lines (recursively, depth-first)
+    // Map statement-level diffs to specific lines (parent-first, then children)
     const mapStatementDiffsRecursively = (stmtDiffs: any[]) => {
       stmtDiffs.forEach(stmtDiff => {
-        // Process child diffs FIRST (depth-first traversal) so children take precedence
-        const hasChildren = stmtDiff.child_diffs && stmtDiff.child_diffs.length > 0
-        if (hasChildren) {
-          mapStatementDiffsRecursively(stmtDiff.child_diffs)
-        }
-        
+        // Process PARENT FIRST - this ensures moved_modified blocks set their blue background
         // Check if this statement diff has line range properties
         const hasLineRange = stmtDiff.file_a_start_line !== undefined || stmtDiff.file_b_start_line !== undefined
         
@@ -60,13 +166,30 @@ export default function BackendDiffViewer({
             const startLine = stmtDiff.file_a_start_line
             const endLine = stmtDiff.file_a_end_line
             for (let i = startLine; i <= endLine; i++) {
-              // Only set if not already set by a more specific child diff
-              if (!statementChangesA.has(i)) {
+              const existing = statementChangesA.get(i)
+              
+              if (!existing) {
+                // Line not set yet, set it now
                 statementChangesA.set(i, {
                   type: stmtDiff.change_type,
                   description: stmtDiff.description,
                   targetLine: i === startLine ? stmtDiff.file_b_start_line : undefined,
-                  sourceLine: startLine
+                  sourceLine: startLine,
+                  keywordChanges: stmtDiff.keyword_changes
+                })
+              } else if (stmtDiff.change_type === 'modified' && existing.type === 'moved_modified') {
+                // Child modified within moved_modified parent: keep parent type, add child keyword_changes
+                if (stmtDiff.keyword_changes) {
+                  existing.keywordChanges = stmtDiff.keyword_changes
+                }
+              } else if (stmtDiff.change_type === 'added' || stmtDiff.change_type === 'deleted') {
+                // Added/deleted children should override parent styling
+                statementChangesA.set(i, {
+                  type: stmtDiff.change_type,
+                  description: stmtDiff.description,
+                  targetLine: i === startLine ? stmtDiff.file_b_start_line : undefined,
+                  sourceLine: startLine,
+                  keywordChanges: stmtDiff.keyword_changes
                 })
               }
             }
@@ -76,13 +199,30 @@ export default function BackendDiffViewer({
             const startLine = stmtDiff.file_b_start_line
             const endLine = stmtDiff.file_b_end_line
             for (let i = startLine; i <= endLine; i++) {
-              // Only set if not already set by a more specific child diff
-              if (!statementChangesB.has(i)) {
+              const existing = statementChangesB.get(i)
+              
+              if (!existing) {
+                // Line not set yet, set it now
                 statementChangesB.set(i, {
                   type: stmtDiff.change_type,
                   description: stmtDiff.description,
                   sourceLine: i === startLine ? stmtDiff.file_a_start_line : undefined,
-                  targetLine: startLine
+                  targetLine: startLine,
+                  keywordChanges: stmtDiff.keyword_changes
+                })
+              } else if (stmtDiff.change_type === 'modified' && existing.type === 'moved_modified') {
+                // Child modified within moved_modified parent: keep parent type, add child keyword_changes
+                if (stmtDiff.keyword_changes) {
+                  existing.keywordChanges = stmtDiff.keyword_changes
+                }
+              } else if (stmtDiff.change_type === 'added' || stmtDiff.change_type === 'deleted') {
+                // Added/deleted children should override parent styling
+                statementChangesB.set(i, {
+                  type: stmtDiff.change_type,
+                  description: stmtDiff.description,
+                  sourceLine: i === startLine ? stmtDiff.file_a_start_line : undefined,
+                  targetLine: startLine,
+                  keywordChanges: stmtDiff.keyword_changes
                 })
               }
             }
@@ -94,7 +234,8 @@ export default function BackendDiffViewer({
               type: stmtDiff.change_type,
               description: stmtDiff.description,
               targetLine: stmtDiff.file_b_line,
-              sourceLine: stmtDiff.file_a_line
+              sourceLine: stmtDiff.file_a_line,
+              keywordChanges: stmtDiff.keyword_changes
             })
           }
           if (stmtDiff.file_b_line && !statementChangesB.has(stmtDiff.file_b_line)) {
@@ -102,9 +243,16 @@ export default function BackendDiffViewer({
               type: stmtDiff.change_type,
               description: stmtDiff.description,
               sourceLine: stmtDiff.file_a_line,
-              targetLine: stmtDiff.file_b_line
+              targetLine: stmtDiff.file_b_line,
+              keywordChanges: stmtDiff.keyword_changes
             })
           }
+        }
+        
+        // Process child diffs AFTER parent is set
+        const hasChildren = stmtDiff.child_diffs && stmtDiff.child_diffs.length > 0
+        if (hasChildren) {
+          mapStatementDiffsRecursively(stmtDiff.child_diffs)
         }
       })
     }
@@ -127,7 +275,8 @@ export default function BackendDiffViewer({
           type: diff.change_type,
           description: diff.description,
           targetLine: diff.file_b_start_line || undefined,
-          sourceLine: diff.file_a_start_line
+          sourceLine: diff.file_a_start_line,
+          keywordChanges: undefined
         })
       }
       if (diff.file_b_start_line && !statementChangesB.has(diff.file_b_start_line)) {
@@ -135,7 +284,8 @@ export default function BackendDiffViewer({
           type: diff.change_type,
           description: diff.description,
           sourceLine: diff.file_a_start_line || undefined,
-          targetLine: diff.file_b_start_line
+          targetLine: diff.file_b_start_line,
+          keywordChanges: undefined
         })
       }
     }
@@ -163,13 +313,12 @@ export default function BackendDiffViewer({
           return { background: '#e6ffed', borderLeft: '3px solid #22863a' }
         case 'deleted':
           return { background: '#ffeef0', borderLeft: '3px solid #d73a49' }
-        case 'modified':
-          return { background: 'white', borderLeft: '3px solid transparent' }
         case 'moved':
         case 'moved_modified':
           return { background: '#e0f2fe', borderLeft: '3px solid #0284c7' }
         default:
-          break
+          // For modified and others, no special background - just show keyword highlights
+          return { background: 'white', borderLeft: '3px solid transparent' }
       }
     }
     
@@ -182,13 +331,12 @@ export default function BackendDiffViewer({
         return { background: '#e6ffed', borderLeft: '3px solid #22863a' }
       case 'deleted':
         return { background: '#ffeef0', borderLeft: '3px solid #d73a49' }
-      case 'modified':
-        return { background: 'white', borderLeft: '3px solid transparent' }
       case 'moved_modified':
         return { background: '#e0f2fe', borderLeft: '3px solid #0284c7' }
       case 'moved':
-        return { background: '#e0e7ff', borderLeft: '3px solid #6366f1' }
+        return { background: '#e0f2fe', borderLeft: '3px solid #0284c7' }
       default:
+        // For modified and others, no special background - just show keyword highlights
         return { background: 'white', borderLeft: '3px solid transparent' }
     }
   }
@@ -341,7 +489,14 @@ export default function BackendDiffViewer({
                     lineHeight: '1.5',
                     fontWeight: stmtChange ? '600' : '400'
                   }}>
-                    {line || ' '}
+                    {stmtChange && (stmtChange.type === 'modified' || stmtChange.type === 'moved_modified') && stmtChange.keywordChanges
+                      ? <HighlightedLine 
+                          line={line} 
+                          keywordChanges={stmtChange.keywordChanges}
+                          isFileA={true}
+                        />
+                      : (line || ' ')
+                    }
                   </pre>
                   {stmtChange && stmtChange.type !== 'modified' && (
                     // For moved/moved_modified, only show badge on the start line (when targetLine is defined)
@@ -441,7 +596,14 @@ export default function BackendDiffViewer({
                     lineHeight: '1.5',
                     fontWeight: stmtChange ? '600' : '400'
                   }}>
-                    {line || ' '}
+                    {stmtChange && (stmtChange.type === 'modified' || stmtChange.type === 'moved_modified') && stmtChange.keywordChanges
+                      ? <HighlightedLine 
+                          line={line} 
+                          keywordChanges={stmtChange.keywordChanges}
+                          isFileA={false}
+                        />
+                      : (line || ' ')
+                    }
                   </pre>
                   {stmtChange && stmtChange.type !== 'modified' && (
                     // For moved/moved_modified, only show badge on the start line (when sourceLine is defined)

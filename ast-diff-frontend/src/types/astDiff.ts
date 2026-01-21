@@ -44,9 +44,13 @@ export interface StatementDiff {
   change_type: string
   code: string
   node_type: string
-  file_a_line: number | null
+  file_a_line?: number | null
+  file_a_start_line?: number | null
+  file_a_end_line?: number | null
   file_a_index: number | null
-  file_b_line: number | null
+  file_b_line?: number | null
+  file_b_start_line?: number | null
+  file_b_end_line?: number | null
   file_b_index: number | null
   description: string
   old_code: string | null
@@ -54,5 +58,13 @@ export interface StatementDiff {
   child_diffs: StatementDiff[]
   is_container: boolean
   branch_label: string | null
+  keyword_changes?: Array<{
+    old_token: string
+    new_token: string
+    old_start: number
+    old_end: number
+    new_start: number
+    new_end: number
+  }>
 }
   
