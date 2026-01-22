@@ -16,15 +16,6 @@ export default function ViewOriginalPage() {
     const [resetKey, setResetKey] = useState(0)
     const [fileType, setFileType] = useState<"javascript" | "json">("javascript")
 
-    const readFileContent = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onload = (e) => resolve(e.target?.result as string)
-            reader.onerror = (e) => reject(e)
-            reader.readAsText(file)
-        })
-    }
-
     const handleCompare = async () => {
         if (!fileA || !fileB) {
             setError("Please select both files")
@@ -38,15 +29,10 @@ export default function ViewOriginalPage() {
             // Call backend API for AST diff analysis
             const result = await compareAst(fileA, fileB, fileType)
 
-            // Also read file contents for display
-            const [contentA, contentB] = await Promise.all([
-                readFileContent(fileA),
-                readFileContent(fileB)
-            ])
-
+            // Use formatted content from backend response
             setData(result)
-            setFileAContent(contentA)
-            setFileBContent(contentB)
+            setFileAContent(result.file_a.formatted_content)
+            setFileBContent(result.file_b.formatted_content)
         } catch (err) {
             setError("Failed to compare files. Please try again.")
             console.error(err)

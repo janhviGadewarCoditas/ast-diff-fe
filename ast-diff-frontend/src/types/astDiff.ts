@@ -11,6 +11,7 @@ export interface AstDiffResponse {
     original_filename: string
     total_lines: number
     function_count: number
+    formatted_content: string
   }
   
   export interface Summary {

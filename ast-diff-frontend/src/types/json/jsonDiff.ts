@@ -11,6 +11,7 @@ export interface JsonFileInfo {
   original_filename: string
   total_lines: number
   element_count: number
+  formatted_content: string
 }
 
 export interface JsonSummary {
