@@ -262,6 +262,50 @@ export default function BackendDiffViewer({
       mapStatementDiffsRecursively(diff.statement_diffs)
     }
     
+    // Also process keyword_changes from the top-level difference object itself
+    // This handles cases where the entire block has keyword changes (e.g., moved_modified blocks)
+    if (diff.keyword_changes && diff.keyword_changes.length > 0) {
+      // Map keyword changes to File A lines
+      if (diff.file_a_start_line && diff.file_a_end_line) {
+        for (let i = diff.file_a_start_line; i <= diff.file_a_end_line; i++) {
+          const existing = statementChangesA.get(i)
+          if (existing) {
+            // Add keyword changes to existing entry
+            existing.keywordChanges = diff.keyword_changes
+          } else {
+            // Create new entry with keyword changes
+            statementChangesA.set(i, {
+              type: diff.change_type,
+              description: diff.description,
+              targetLine: i === diff.file_a_start_line ? (diff.file_b_start_line ?? undefined) : undefined,
+              sourceLine: diff.file_a_start_line,
+              keywordChanges: diff.keyword_changes
+            })
+          }
+        }
+      }
+      
+      // Map keyword changes to File B lines
+      if (diff.file_b_start_line && diff.file_b_end_line) {
+        for (let i = diff.file_b_start_line; i <= diff.file_b_end_line; i++) {
+          const existing = statementChangesB.get(i)
+          if (existing) {
+            // Add keyword changes to existing entry
+            existing.keywordChanges = diff.keyword_changes
+          } else {
+            // Create new entry with keyword changes
+            statementChangesB.set(i, {
+              type: diff.change_type,
+              description: diff.description,
+              sourceLine: i === diff.file_b_start_line ? (diff.file_a_start_line ?? undefined) : undefined,
+              targetLine: diff.file_b_start_line,
+              keywordChanges: diff.keyword_changes
+            })
+          }
+        }
+      }
+    }
+    
     // For added/moved/moved_modified blocks without statement_diffs, show the block-level badge
     const hasStatementDiffs = diff.statement_diffs && diff.statement_diffs.length > 0
     const shouldShowBlockLevelBadge = (diff.change_type === 'added' && !hasStatementDiffs) || 
