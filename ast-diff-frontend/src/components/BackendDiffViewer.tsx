@@ -316,9 +316,6 @@ export default function BackendDiffViewer({
         case 'moved':
         case 'moved_modified':
           return { background: '#e0f2fe', borderLeft: '3px solid #0284c7' }
-        default:
-          // For modified and others, no special background - just show keyword highlights
-          return { background: 'white', borderLeft: '3px solid transparent' }
       }
     }
     
