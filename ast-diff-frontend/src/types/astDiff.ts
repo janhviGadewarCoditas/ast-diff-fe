@@ -39,6 +39,14 @@ export interface AstDiffResponse {
     similarity_score: number
     description: string
     statement_diffs: StatementDiff[]
+    keyword_changes?: Array<{
+      old_token: string
+      new_token: string
+      old_start: number
+      old_end: number
+      new_start: number
+      new_end: number
+    }>
   }
   
 export interface StatementDiff {
